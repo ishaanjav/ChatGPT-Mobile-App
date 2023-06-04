@@ -4,6 +4,8 @@ import { IconButton, MD3Colors } from 'react-native-paper';
 import { getDatabase, ref, push, set, get, update, serverTimestamp, } from 'firebase/database';
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from '../firebaseConfig.js';
+// const Navigation = require('react-native-navigation');
+import Header from './Header.js';
 
 const blacksend = require('../assets/smallicons/greensend.png');
 const greensend = require('../assets/smallicons/greensend.png');
@@ -118,6 +120,11 @@ class ChatScreen extends Component {
       this.setState({ textInputHeight: contentSize.height });
    };
 
+   handleLeftButtonPress = (event) => {
+      // TODO, go to home screen
+      console.log("Going to home screen");
+   };
+
    render() {
       const { message, textInputHeight, sendicon, visibleSend } = this.state;
       let button;
@@ -144,8 +151,11 @@ class ChatScreen extends Component {
          />
       }
 
+      // TODO: Change title to name of chat
+      // FEATURE: user swipes left on header. or swipes right. goes to next chat.
       return (
          <View style={{ flex: 1 }}>
+            <Header title="Name of Chat" onPress={this.handleLeftButtonPress} />
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}>{/* Previous chat messages go here */}</ScrollView>
             <View
                style={{
@@ -166,7 +176,7 @@ class ChatScreen extends Component {
                      width: '90%',
                      borderRadius: 10,
                      alignContent: 'center',
-                     marginBottom: !isIOS ? 8 : 0,
+                     marginBottom: !isIOS ? 8 : 20,
                   }}
                >
                   <TextInput
