@@ -7,7 +7,7 @@ import { getDatabase } from "firebase/database";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
+export const firebaseConfig = {
     apiKey: "AIzaSyABjEBXf2d0weNXJGN6g2os0J26iRL4zC0",
     authDomain: "chatgpt-mobile-app-52f2b.firebaseapp.com",
     databaseURL: "https://chatgpt-mobile-app-52f2b-default-rtdb.firebaseio.com",
@@ -22,3 +22,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const database = getDatabase(app);
+console.log("Initialized Firebase Config")
+
