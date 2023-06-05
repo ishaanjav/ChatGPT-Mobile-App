@@ -9,8 +9,7 @@ import { firebaseConfig } from '../firebaseConfig.js';
 import Header from './Header.js';
 import Row from './Row.js';
 import API_KEY from '../OpenAI_API_KEY.js';
-
-
+import * as FileSystem from 'expo-file-system';
 
 const blacksend = require('../assets/smallicons/greensend.png');
 const greensend = require('../assets/smallicons/greensend.png');
@@ -63,9 +62,55 @@ class ChatScreen extends Component {
          });
    }
 
-   componentDidMount() {
+   async readUser() {
+      const filePath = FileSystem.documentDirectory + 'user.txt';
+      // console.log(filePath)
+      // Delete the file
+      // FileSystem.deleteAsync(filePath)
+      //    .then(() => {
+      //       console.log('File deleted successfully');
+      //    })
+      //    .catch((error) => {
+      //       console.error('Error deleting file:', error);
+      //    });
 
-      console.log('Reading Firebase');
+      FileSystem.getInfoAsync(filePath)
+         .then(({ exists }) => {
+            if (exists) {
+               // File exists, so read its contents
+               console.log(FileSystem.readAsStringAsync(filePath))
+               return FileSystem.readAsStringAsync(filePath);
+            } else {
+               // File doesn't exist, so create it
+               // this is a new user device. create an entry for them in numChats
+               user = generateRandomString(5);
+               const db = getDatabase();
+               const dbRef2 = ref(db, 'numChats/' + user + '/');
+               set(dbRef2, {
+                  cur: 1,
+                  last: 1
+               });
+               console.log("=============1111==================>")
+               console.log('Reading Firebase');
+               this.readFirebase();
+               return FileSystem.writeAsStringAsync(filePath, user);
+            }
+         })
+         .then((data) => {
+            if (data) {
+               user = data;
+               console.log('Reading Firebase');
+               this.readFirebase();
+            } else {
+
+            }
+            console.log("USER:", user)
+         })
+         .catch((error) => {
+            console.error('Error reading or creating file:', error);
+         });
+   }
+   readFirebase() {
       const db = getDatabase();
 
       const dbRef3 = ref(db, 'refs/' + user + '/')
@@ -97,12 +142,7 @@ class ChatScreen extends Component {
             console.error(error);
          });
 
-
-
-      this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
-      this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
-
-
+      console.log("=============2222==================>")
       const dbRef2 = ref(db, 'numChats/' + user + '/');
       get(dbRef2)
          .then((snapshot) => {
@@ -115,7 +155,16 @@ class ChatScreen extends Component {
             console.error(error);
          });
 
+   }
 
+   componentDidMount() {
+      this.readUser();
+
+
+
+
+      this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
+      this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
    }
    componentWillUnmount() {
       this.keyboardDidShowListener.remove();
@@ -664,4 +713,17 @@ function capitalizeAndRemovePunctuation(str) {
 } function containsLetter(str) {
    const regex = /[a-zA-Z]/;
    return regex.test(str);
+}
+
+function generateRandomString(length) {
+   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+   let result = '';
+   const charactersLength = characters.length;
+
+   for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charactersLength);
+      result += characters.charAt(randomIndex);
+   }
+
+   return result;
 }
