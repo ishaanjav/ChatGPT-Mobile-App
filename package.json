@@ -9,10 +9,13 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/dev": "^0.2.3",
+    "@expo-google-fonts/poppins": "^0.2.3",
     "@expo/webpack-config": "^18.0.1",
     "@react-native-community/masked-view": "^0.1.11",
     "@react-native-material/core": "^1.3.7",
     "expo": "~48.0.18",
+    "expo-font": "~11.1.1",
     "expo-status-bar": "~1.4.4",
     "firebase": "^9.22.1",
     "react": "18.2.0",

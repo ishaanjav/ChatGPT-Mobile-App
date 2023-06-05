@@ -1,11 +1,13 @@
 import React, { Component } from 'react';
-import { View, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity } from 'react-native';
+import { View, Keyboard, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity, Text } from 'react-native';
 import { IconButton, MD3Colors } from 'react-native-paper';
-import { getDatabase, ref, push, set, get, update, serverTimestamp, } from 'firebase/database';
+import { getDatabase, ref, push, child, set, get, update, serverTimestamp, onChildAdded, onChildChanged, onChildRemoved } from 'firebase/database';
+import { onValue } from 'firebase/database';
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from '../firebaseConfig.js';
 // const Navigation = require('react-native-navigation');
 import Header from './Header.js';
+import Row from './Row.js';
 
 const blacksend = require('../assets/smallicons/greensend.png');
 const greensend = require('../assets/smallicons/greensend.png');
@@ -14,17 +16,92 @@ const isIOS = Platform.OS === 'ios';
 //TODO: Change
 var user = 'bob';
 var chatID = '343d';
+var index = 0;
+
+// const items = [
+//    // <Row text="a" role='user' />,
+//    // <Row text="b" role='bot' />,
+//    // <Row text="c" role='user' />,
+//    // <Row text="d" role='bot' />,
+// ]
 
 class ChatScreen extends Component {
    constructor(props) {
       super(props);
+      this.scrollViewRef = React.createRef();
       this.state = {
          message: '',
          textInputHeight: 40,
          sendicon: greensend,
          visibleSend: false,
+         items: [],
       };
    }
+
+   componentDidMount() {
+
+      console.log('Reading Firebase');
+      const db = getDatabase();
+      const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
+      // onChildAdded(dbRef, (data) => {
+      //    console.log(data)
+      // });
+
+      get(dbRef)
+         .then((snapshot) => {
+            snapshot.forEach((child) => {
+               // console.log("Added", index)
+               // this.state.items.push(<Row text={child.val()} key={index} />);
+               this.state.items.push(child.val())
+               index++;
+            })
+         }).finally(() => {
+            console.log("Finally", this.state.items.length)
+            // console.log(this.state.items);
+            this.setState({ items: this.state.items })
+            // this.forceUpdate();
+         })
+         .catch((error) => {
+            console.error(error);
+         });
+
+      this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
+      this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
+
+
+      //TODO: send the entire chat history as a prompt to OpenAI.
+      //   Question: Does OpenAI API itself remember the previous api messages sent?
+      ///     or do I have to resend all of them?
+      // console.log("\n")
+      // console.log("\n")
+
+      // onValue(dbRef, (snapshot) => {
+      //    snapshot.forEach((child) => {
+      //       console.log("Insert", index)
+      //       this.state.items.push(<Row text={child.val()} key={index} />);
+      //       index++;
+      //    });
+      // }, {
+      //    onlyOnce: true
+      // });
+      // console.log(this.state.items);
+   }
+   componentWillUnmount() {
+      this.keyboardDidShowListener.remove();
+      this.keyboardDidHideListener.remove();
+   }
+
+   _keyboardDidShow = () => {
+      if (this.scrollViewRef) {
+         this.scrollViewRef.scrollToEnd({ animated: true });
+      }
+   };
+
+   _keyboardDidHide = () => {
+      if (this.scrollViewRef) {
+         this.scrollViewRef.scrollToEnd({ animated: true });
+      }
+   };
 
    handleTextChange = (text) => {
       this.setState({ message: text });
@@ -42,9 +119,11 @@ class ChatScreen extends Component {
 
    handleSend = () => {
       const { message } = this.state;
+
       if (message.length === 0) return;
 
       console.log('Sending message:', message);
+      Keyboard.dismiss();
       var originalMessage = message;
       this.setState({ message: '', sendicon: blacksend, visibleSend: false });
 
@@ -56,26 +135,38 @@ class ChatScreen extends Component {
       const db = getDatabase();
       const stamp = serverTimestamp();
       // const messageName = db.ServerValue.TIMESTAMP + '_u';
-      push(ref(db, 'chats/' + user + '/' + chatID + '/'), {
+      var data = {
          role: 'user',
          content: originalMessage,
          date: new Date().toLocaleDateString(),
          time: new Date().toLocaleTimeString(),
          timestamp: stamp,
-      });
-      // update(ref(db, 'chats/' + user + '/' + chatID + '/' + messageName), {
-      //    role: 'user',
-      //    content: originalMessage,
-      //    date: new Date().toLocaleDateString(),
-      //    time: new Date().toLocaleTimeString(),
-      //    timestamp: stamp,
-      // });
+      };
+      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
+
+      // this.state.items.push(<Row text={data} key={index} />);
+      this.state.items.push(data)
+      index++;
 
       this.queryOpenAI(originalMessage, db);
    };
 
-   queryOpenAI = (message, db) => {
+   queryOpenAI = async (message, db) => {
       // TODO: Send API request to OpenAI
+      // const result = await fetch(API_URL, {
+      //    method: "POST",
+      //    headers: {
+      //       "Content-Type": "application/json",
+      //       Authorization: `Bearer ${API_KEY}`,
+      //    },
+      //    body: JSON.stringify({
+      //       model: "gpt-3.5-turbo",
+      //       messages: [{ role: "user", content: message }],
+      //       max_tokens: 90,
+      //    }),
+      // });
+
+      // const response = await result.json();
 
       const response = {
          "choices": [
@@ -83,7 +174,8 @@ class ChatScreen extends Component {
                "finish_reason": "length",
                "index": 0,
                "message": {
-                  "content": "As an AI language model, I do not have personal preferences. However, according to critics and audience ratings, the best DC movie ever is The Dark Knight (2008), directed by Christopher Nolan and starring Christian Bale as Batman and Heath Ledger as the",
+                  // "content": "As an AI language model, I do not have personal preferences. However, according to critics and audience ratings, the best DC movie ever is The Dark Knight (2008), directed by Christopher Nolan and starring Christian Bale as Batman and Heath Ledger as the",
+                  "content": "Man of Steel is often considered the best DC movie ever because it offers a fresh and modern take on the classic superhero origin story.\n\nThe movie explores Superman's origins on the planet Krypton and his upbringing on Earth, as well as his struggle to find his place in the world and his role as a hero. The film is visually stunning and action=packed, with some of the best and most intense superhero action scenes ever seen on screen. \n\n It also has a powerful emotional core, with themes of love, sacrifice, and heroism that resonate with audiences. Overall, Man of Steel is a well-crafted and entertaining movie that successfully re-introduced Superman to a new generation of moviegoers.",
                   "role": "assistant"
                }
             }
@@ -103,15 +195,21 @@ class ChatScreen extends Component {
       const tokens = response.usage;
       const stamp = serverTimestamp();
       // const messageName = stamp.toSTring + '_b';
-
-      push(ref(db, 'chats/' + user + '/' + chatID + '/'), {
+      var data = {
          role: role,
          content: text,
          date: new Date().toLocaleDateString(),
          time: new Date().toLocaleTimeString(),
          timestamp: stamp,
          tokens: tokens,
-      });
+      };
+      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
+
+      // this.state.items.push(<Row text={data} key={index} />);
+      this.state.items.push(data)
+      index++;
+
+      console.log(this.state.items.length)
    }
 
 
@@ -124,6 +222,16 @@ class ChatScreen extends Component {
       // TODO, go to home screen
       console.log("Going to home screen");
    };
+   renderItems() {
+      // Check if items array is not empty
+      // if (this.state.items.length > 0) {
+      console.log("HEREEE", this.state.items.length)
+      // console.log(this.state.items);
+      return this.state.items.map((item, index) => (
+         // Render individual item components here
+         <Text key={index}>{item.role}</Text>
+      ));
+   }
 
    render() {
       const { message, textInputHeight, sendicon, visibleSend } = this.state;
@@ -136,13 +244,6 @@ class ChatScreen extends Component {
             backgroundColor={'#51ad87'}
             onPress={this.handleSend}
          />
-         // button = <IconButton
-         //    icon={blacksend} size={17}
-         //    iconColor={'#51ad87'}
-         //    // background={'white'}
-         //    // backgroundColor={'#51ad87'}
-         //    onPress={() => console.log('Pressed')}
-         // />
       } else {
          button = <IconButton
             icon={blacksend} size={17}
@@ -156,7 +257,28 @@ class ChatScreen extends Component {
       return (
          <View style={{ flex: 1 }}>
             <Header title="Name of Chat" onPress={this.handleLeftButtonPress} />
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }}>{/* Previous chat messages go here */}</ScrollView>
+            <ScrollView contentContainerStyle={{ flexGrow: 1 }}
+               ref={ref => {
+                  this.scrollViewRef = ref;
+               }}
+               onContentSizeChange={() => {
+                  if (this.scrollViewRef) {
+                     this.scrollViewRef.scrollToEnd({ animated: true });
+                  }
+               }}
+            >
+               {this.state.items.map((item, index) => (
+                  <Row text={item} key={index} />
+               ))}
+               {/* {Object.entries(this.state.items).map(([key, value]) => {
+                  return (
+                     <Text>
+                        {key}: {value}
+                     </Text>
+                  );
+               })} */}
+               {/* {this.renderItems()} */}
+            </ScrollView>
             <View
                style={{
                   flexDirection: 'row',
@@ -186,7 +308,9 @@ class ChatScreen extends Component {
                      onContentSizeChange={this.handleContentSizeChange}
                      placeholder="Send a message."
                      placeholderTextColor={'#aaa'}
+                     selectionColor={'#5fcf86'}
                      maxLength={500}
+                     onSubmitEditing={Keyboard.dismiss}
                      style={{
                         flex: 1,
                         height: Math.min(130, Math.max(40, textInputHeight)),

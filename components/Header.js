@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, StatusBar, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Touchable } from 'react-native';
 import { IconButton } from 'react-native-paper';
 const arrow = require('../assets/smallicons/leftback.png');
+const plus = require('../assets/smallicons/plus.png');
 
 // write me a regular empty function
 const goHome = () => {
@@ -9,6 +10,7 @@ const goHome = () => {
 };
 
 // TODO: Go to home page
+// TODO: Create new chat
 const Header = ({ title, onPress }) => {
     return (
         <View style={styles.container}>
@@ -24,6 +26,16 @@ const Header = ({ title, onPress }) => {
                     />
                 </TouchableOpacity>
                 <Text style={styles.title}>{title}</Text>
+                <TouchableOpacity onPress={() => { console.log(' newchat') }}
+                    style={{ marginRight: 4, backgroundColor: 'white' }}>
+                    <IconButton
+                        icon={plus} size={20}
+                        iconColor={'black'}
+                        backgroundColor={'#fff'}
+                        onPress={() => { console.log(' presssed') }}
+                        style={styles.button}
+                    />
+                </TouchableOpacity>
             </SafeAreaView>
         </View>
     );
@@ -43,12 +55,13 @@ const styles = StyleSheet.create({
     button: {
         justifyContent: 'center',
         alignItems: 'center',
-
         // marginRight: 8, // Added for spacing between button and text
     },
     title: {
-        marginLeft: -59,
+        // marginLeft: -59,
         flex: 1,
+        // color: '#255943',
+        color: '#555',
         fontSize: 18,
         fontWeight: 'bold',
         textAlign: 'center',
