@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { View, Keyboard, ScrollView, TextInput, Text, Alert } from 'react-native';
+import { View, Keyboard, ScrollView, TextInput, KeyboardAvoidingView, Text, Alert, Dimensions } from 'react-native';
 import { IconButton } from 'react-native-paper';
 import { getDatabase, ref, push, set, remove, get, serverTimestamp } from 'firebase/database';
 import Header from './Header.js';
@@ -32,6 +32,7 @@ class ChatScreen extends Component {
          visibleSend: false, // whether or not to show the send button
          items: [], // array of messages
          chatTitle: 'Chat #' + chatID, // chat title
+         iosKeyboardMargin: 20,
          // chatID: 1,
       };
    }
@@ -151,7 +152,10 @@ class ChatScreen extends Component {
       this.keyboardDidHideListener.remove();
    }
 
-   _keyboardDidShow = () => {
+   _keyboardDidShow = (e) => {
+      console.log("Height is", e.endCoordinates.height, Dimensions.get('window').height)
+      this.state.iosKeyboardMargin = e.endCoordinates.height + 9;
+      this.setState({ iosKeyboardMargin: e.endCoordinates.height + 9 })
       if (this.scrollViewRef) {
          this.scrollViewRef.scrollToEnd({ animated: true });
       }
@@ -353,6 +357,9 @@ class ChatScreen extends Component {
 
       if (message.length === 0) return;
 
+      this.state.iosKeyboardMargin = 20;
+      this.setState({ iosKeyboardMargin: 20 })
+
       Keyboard.dismiss();
       var originalMessage = message.trim();
       this.setState({ message: '', sendicon: blacksend, visibleSend: false });
@@ -522,7 +529,7 @@ class ChatScreen extends Component {
       }
 
       return (
-         <View style={{ flex: 1 }}>
+         <KeyboardAvoidingView style={{ flex: 1 }}>
             <Header title={this.state.chatTitle} onGoLeft={this.goLeftChat} onGoRight={this.goRightChat} onDeleteChat={this.deleteChat} onNewChat={this.createNewChat} />
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                ref={ref => {
@@ -557,7 +564,7 @@ class ChatScreen extends Component {
                      width: '90%',
                      borderRadius: 10,
                      alignContent: 'center',
-                     marginBottom: !isIOS ? 8 : 20,
+                     marginBottom: isIOS ? this.state.iosKeyboardMargin : 8,
                   }}
                >
                   <TextInput
@@ -583,7 +590,7 @@ class ChatScreen extends Component {
 
                </View>
             </View>
-         </View>
+         </KeyboardAvoidingView>
       );
    }
 }
