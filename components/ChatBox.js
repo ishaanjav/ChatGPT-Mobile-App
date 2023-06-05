@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { View, Keyboard, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity, Text, Alert } from 'react-native';
 import { IconButton, MD3Colors } from 'react-native-paper';
-import { getDatabase, ref, push, child, set, get, update, serverTimestamp, onChildAdded, onChildChanged, onChildRemoved } from 'firebase/database';
+import { getDatabase, ref, push, child, set, remove, get, update, serverTimestamp, onChildAdded, onChildChanged, onChildRemoved } from 'firebase/database';
 import { onValue } from 'firebase/database';
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from '../firebaseConfig.js';
@@ -18,9 +18,11 @@ const isIOS = Platform.OS === 'ios';
 
 //TODO: Change
 var user = 'bob';
-var index = 0;
-var numChats = 1;
-
+var idx = 0;
+var numChats = 0;
+var lastUsed = 0;
+var chats = []
+var chatID = 1;
 // const items = [
 //    // <Row text="a" role='user' />,
 //    // <Row text="b" role='bot' />,
@@ -38,7 +40,8 @@ class ChatScreen extends Component {
          sendicon: greensend,
          visibleSend: false,
          items: [],
-         chatID: 1,
+         chatTitle: 'Chat #' + chatID,
+         // chatID: 1,
       };
    }
 
@@ -49,10 +52,8 @@ class ChatScreen extends Component {
                // console.log("Added", index)
                // this.state.items.push(<Row text={child.val()} key={index} />);
                this.state.items.push(child.val())
-               index++;
             })
          }).finally(() => {
-            console.log("Finally", this.state.items.length)
             // console.log(this.state.items);
             this.setState({ items: this.state.items })
             // this.forceUpdate();
@@ -66,27 +67,48 @@ class ChatScreen extends Component {
 
       console.log('Reading Firebase');
       const db = getDatabase();
-      const dbRef = ref(db, 'chats/' + user + '/' + this.state.chatID + '/');
-      // onChildAdded(dbRef, (data) => {
-      //    console.log(data)
-      // });
 
-      this.loadChatHistory(dbRef);
+      const dbRef3 = ref(db, 'refs/' + user + '/')
+      var cnter = 0
+      get(dbRef3)
+         .then((snapshot) => {
+            snapshot.forEach((child) => {
+               cnter++;
+               if (!containsLetter(child.key))
+                  chats.push(child.val());
+               if (cnter == 1) {
+                  // basically, once we get the first chat in the list, immediately load its messages
+                  //  before getting the metadata of other chats
+                  chatID = chats[idx].ref;
+                  console.log("GOBOBER", chatID)
+                  const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
+                  this.loadChatHistory(dbRef);
+               }
+            });
+         }).finally(() => {
+            console.log("CHATS: ", chats)
+            if (chats.length > idx) {
+               chatID = chats[idx].ref;
+               console.log("ASDFASDFASDFASDFA", chatID)
+               this.setState({ chatTitle: chats[idx].name })
+            }
+         })
+         .catch((error) => {
+            console.error(error);
+         });
+
+
 
       this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
       this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
 
-      const dbRef2 = ref(db, 'numChats/' + user + '/');
-      // onChildAdded(dbRef, (data) => {
-      //    console.log(data)
-      // });
 
+      const dbRef2 = ref(db, 'numChats/' + user + '/');
       get(dbRef2)
          .then((snapshot) => {
-            snapshot.forEach((child) => {
-               numChats = child.val();
-               console.log("   Num Chats: ", numChats)
-            })
+            numChats = snapshot.val().cur;
+            lastUsed = snapshot.val().last;
+            console.log("  numChats", numChats, "lastUsed", lastUsed)
          }).finally(() => {
          })
          .catch((error) => {
@@ -94,22 +116,6 @@ class ChatScreen extends Component {
          });
 
 
-      //TODO: send the entire chat history as a prompt to OpenAI.
-      //   Question: Does OpenAI API itself remember the previous api messages sent?
-      ///     or do I have to resend all of them?
-      // console.log("\n")
-      // console.log("\n")
-
-      // onValue(dbRef, (snapshot) => {
-      //    snapshot.forEach((child) => {
-      //       console.log("Insert", index)
-      //       this.state.items.push(<Row text={child.val()} key={index} />);
-      //       index++;
-      //    });
-      // }, {
-      //    onlyOnce: true
-      // });
-      // console.log(this.state.items);
    }
    componentWillUnmount() {
       this.keyboardDidShowListener.remove();
@@ -148,8 +154,65 @@ class ChatScreen extends Component {
       3. decrement chatID by 1
       4. Load the new chat history
       */
+      numChats -= 1;
+      const chatData = chats[idx];
+      chats.splice(idx, 1);
+      if (idx == numChats) idx--;
+      if (idx == -1) {
+         //TODO DO some stuff to create a blank new Chat
+         // Literally just call createNewChat()
+         this.createNewChat();
+         idx = 0;
+         const db = getDatabase();
+         remove(ref(db, 'refs/' + user + '/' + chatData.ref + '/'));
+         chatData.removeDate = new Date().toLocaleDateString();
+         chatData.removeTime = new Date().toLocaleTimeString();
+         set(ref(db, 'refs/' + user + '/d_' + chatData.ref + '/'), chatData);
+
+
+         // update numChats and lastUsed
+         const dbRef2 = ref(db, 'numChats/' + user + '/');
+         set(dbRef2, {
+            cur: numChats,
+            last: lastUsed
+         });
+
+         return;
+      }
+      chatID = chats[idx].ref;
+      this.setState({ chatTitle: chats[idx].name })
+      this.setState({ items: [], visibleSend: false })
+      this.setState({ message: '', })
+
+      const db = getDatabase();
+      const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
+      console.log("LOADING FOR -----", chatID)
+      this.loadChatHistory(dbRef);
+
+      if (chats.length > idx) {
+         this.setState({ chatTitle: chats[idx].name })
+      } else {
+         this.setState({ chatTitle: "Chat #" + chatID })
+      }
+
+      // remove from refs. reinsert as "d_" + chatID
+      remove(ref(db, 'refs/' + user + '/' + chatData.ref + '/'));
+      chatData.removeDate = new Date().toLocaleDateString();
+      chatData.removeTime = new Date().toLocaleTimeString();
+      set(ref(db, 'refs/' + user + '/d_' + chatData.ref + '/'), chatData);
+
+
+      // update numChats and lastUsed
+      const dbRef2 = ref(db, 'numChats/' + user + '/');
+      set(dbRef2, {
+         cur: numChats,
+         last: lastUsed
+      });
+
    }
    deleteChat = () => {
+      // The chat is empty as it is
+      if (this.state.items.length == 0 && numChats == 1) return;
       Alert.alert(
          'Are you sure?',
          'This will delete the entire chat history and cannot be undone.',
@@ -167,6 +230,10 @@ class ChatScreen extends Component {
       );
    }
    createNewChat = () => {
+      // Chat is empty as it is
+      if (this.state.items.length == 0)
+         return;
+
       const db = getDatabase();
       console.log("Creating new chat")
       /* 
@@ -174,43 +241,96 @@ class ChatScreen extends Component {
       2. reset the state.items
       3. increment maxChatID
       4. make chatID = maxChatID
+      5. make an entry inside refs
       */
       const dbRef2 = ref(db, 'numChats/' + user + '/');
 
       numChats += 1;
-      this.setState({ chatID: numChats })
+      lastUsed += 1;
+      console.log("New chat:", numChats, lastUsed)
+      chatID = lastUsed;
+      // this.setState({ chatID: lastUsed })
       this.setState({ items: [], message: '', visibleSend: false })
 
+      // DONE: Rerender title using chats[idx].name
+      this.setState({ chatTitle: "Chat #" + chatID })
+
       set(dbRef2, {
-         val: numChats
+         cur: numChats,
+         last: lastUsed
       });
+
+      var data = {
+         name: 'Chat #' + chatID,
+         ref: chatID,
+         date: new Date().toLocaleDateString(),
+         time: new Date().toLocaleTimeString(),
+      };
+      console.log(chatID, lastUsed);
+      set(ref(db, 'refs/' + user + '/' + lastUsed + '/'), data);
+      chats.push(data);
+      console.log("CHATs", chats)
+      idx = chats.length - 1;
    }
    goLeftChat = () => {
-      // update chatID
-      var newChatID = (this.state.chatID - 1 + numChats) % numChats
-      if (newChatID == 0) newChatID = numChats
-      this.setState({ chatID: newChatID, message: '', })
+      // If this is the only chat do nothing.
+      if (numChats == 1)
+         return;
+
+      //update idx
+      idx = (idx - 1 + numChats) % numChats
+      // set new chatID using the chats array
+      chatID = chats[idx].ref;
+      console.log("IDX", idx, chats[idx].ref, chatID)
+      this.setState({ message: '', })
+
+
+      // DONE: Rerender title using chats[idx].name
+      if (chats.length > idx) {
+         this.setState({ chatTitle: chats[idx].name })
+      } else {
+         this.setState({ chatTitle: "Chat #" + chatID })
+      }
+
+
       // reset chat history
       this.setState({ items: [], visibleSend: false })
 
       // load chat history from scratch
       const db = getDatabase();
-      const dbRef = ref(db, 'chats/' + user + '/' + newChatID + '/');
-      console.log("LOADING FOR -----", newChatID)
+      const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
+      console.log("LOADING FOR -----", chatID)
       this.loadChatHistory(dbRef);
    }
    goRightChat = () => {
-      var newChatID = (this.state.chatID + 1 + numChats) % numChats
-      if (newChatID == 0) newChatID = numChats
-      this.setState({ chatID: newChatID, message: '', })
+      // If this is the only chat do nothing.
+      if (numChats == 1)
+         return;
+      //update idx
+      idx = (idx + 1 + numChats) % numChats
+      chatID = chats[idx].ref;
+      console.log("IDX", idx, chats[idx].ref, chatID)
+      // set new chatID using the chats array
+      this.setState({ message: '', })
+
+      // DONE: Rerender title using chats[idx].name
+      if (chats.length > idx) {
+         this.setState({ chatTitle: chats[idx].name })
+      } else {
+         this.setState({ chatTitle: "Chat #" + chatID })
+      }
+
+      // reset chat history
       this.setState({ items: [], visibleSend: false })
+
+      // load chat history from scratch
       const db = getDatabase();
-      const dbRef = ref(db, 'chats/' + user + '/' + newChatID + '/');
-      console.log("LOADING FOR -----", newChatID)
+      const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
+      console.log("LOADING FOR -----", chatID)
       this.loadChatHistory(dbRef);
    }
 
-   handleSend = () => {
+   handleSend = async () => {
       const { message } = this.state;
 
       if (message.length === 0) return;
@@ -225,11 +345,63 @@ class ChatScreen extends Component {
       }
       this.state.items.push(data2)
       this.setState({ items: this.state.items })
-      /* TODO:
-        - handleSend doesn't even work. forget the firebase stuff. get handlsend to trigger correctly
-        - then do the firebase stuff
-      */
-      // const app = initializeApp(firebaseConfig);
+
+      // Our first message
+      if (this.state.items.length == 1 && numChats == 1) {
+         const db = getDatabase();
+         var data = {
+            name: 'Chat #' + chatID,
+            ref: chatID,
+            date: new Date().toLocaleDateString(),
+            time: new Date().toLocaleTimeString(),
+         };
+         set(ref(db, 'refs/' + user + '/' + chatID + '/'), data);
+         chats.push(data);
+      } else if (this.state.items.length == 5) {
+         // TODO: Get a summary of existing messages and get an appropriate title and push to above reference.
+         // then set chats[idx] = data
+         //  manually rerender the title
+         const API_URL = "https://api.openai.com/v1/chat/completions";
+         // remove that command about not saying I'm an AI model
+         const messages = this.getPastMessages(2).slice(1);
+         const newMessage = {
+            role: 'user', content: 'Give me a very concise title of what this conversation above is about. It MUST be less than 40 characters. Less than 18 characters and 3 words is ideal. ONLY respond with just the very brief title.'
+         };
+         messages.push(newMessage);
+         console.log("Making requests", messages)
+         const result = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+               Accept: 'application/json',
+               "Content-Type": "application/json",
+               Authorization: `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify({
+               model: "gpt-3.5-turbo",
+               // messages: [{ role: "user", content: message }],
+               messages: messages,
+               max_tokens: 50,
+            }),
+         });
+         const response = await result.json();
+         console.log("CHAT TITLE: ====> ", response.choices[0].message.content);
+         let title = response.choices[0].message.content;
+         title = capitalizeAndRemovePunctuation(title);
+         this.state.chatTitle = title;
+         this.setState({ chatTitle: title })
+         var data = {
+            name: title,
+            ref: chatID,
+            date: new Date().toLocaleDateString(),
+            time: new Date().toLocaleTimeString(),
+         };
+         const db = getDatabase();
+         set(ref(db, 'refs/' + user + '/' + chatID + '/'), data);
+         chats[idx] = data;
+         console.log(chats)
+         // TODO: Rerender the title text in header.
+      }
+
       const db = getDatabase();
       const stamp = serverTimestamp();
       // const messageName = db.ServerValue.TIMESTAMP + '_u';
@@ -240,7 +412,7 @@ class ChatScreen extends Component {
          time: new Date().toLocaleTimeString(),
          timestamp: stamp,
       };
-      push(ref(db, 'chats/' + user + '/' + this.state.chatID + '/'), data);
+      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
 
       // this.state.items.push(<Row text={data} key={index} />);
       // this.getPastMessages(3);
@@ -312,7 +484,7 @@ class ChatScreen extends Component {
          timestamp: stamp,
          tokens: tokens,
       };
-      push(ref(db, 'chats/' + user + '/' + this.state.chatID + '/'), data);
+      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
 
 
 
@@ -387,7 +559,7 @@ class ChatScreen extends Component {
       // FEATURE: user swipes left on header. or swipes right. goes to next chat.
       return (
          <View style={{ flex: 1 }}>
-            <Header title={"Chat #" + this.state.chatID} onGoLeft={this.goLeftChat} onGoRight={this.goRightChat} onDeleteChat={this.deleteChat} onNewChat={this.createNewChat} />
+            <Header title={this.state.chatTitle} onGoLeft={this.goLeftChat} onGoRight={this.goRightChat} onDeleteChat={this.deleteChat} onNewChat={this.createNewChat} />
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                ref={ref => {
                   this.scrollViewRef = ref;
@@ -469,3 +641,27 @@ class ChatScreen extends Component {
 }
 
 export default ChatScreen;
+
+function capitalizeAndRemovePunctuation(str) {
+   // Convert the string to lowercase and split it into words
+   const words = str.toLowerCase().split(' ');
+
+   // Capitalize the beginning of each word and remove punctuation at the end
+   const capitalizedWords = words.map((word) => {
+      // Remove punctuation at the end of each word
+      const wordWithoutPunctuation = word.replace(/[^\w\s]|_/g, '').replace(/\s+/g, ' ');
+
+      // Capitalize the first letter of each word
+      const capitalized = wordWithoutPunctuation.charAt(0).toUpperCase() + wordWithoutPunctuation.slice(1);
+
+      return capitalized;
+   });
+
+   // Join the words back into a string
+   const result = capitalizedWords.join(' ');
+
+   return result;
+} function containsLetter(str) {
+   const regex = /[a-zA-Z]/;
+   return regex.test(str);
+}

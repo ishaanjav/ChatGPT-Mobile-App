@@ -23,9 +23,9 @@ const Header = ({ title, onNewChat, onDeleteChat, onGoLeft, onGoRight }) => {
                     />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { onDeleteChat(); }}
-                    style={{ marginLeft: 4, backgroundColor: 'white' }}>
+                    style={{ marginLeft: 6, backgroundColor: 'white' }}>
                     <IconButton
-                        icon={trash} size={20}
+                        icon={trash} size={17}
                         iconColor={'black'}
                         backgroundColor={'#fff'}
                         onPress={() => { onDeleteChat(); }}
