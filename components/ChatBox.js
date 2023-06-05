@@ -8,6 +8,9 @@ import { firebaseConfig } from '../firebaseConfig.js';
 // const Navigation = require('react-native-navigation');
 import Header from './Header.js';
 import Row from './Row.js';
+import API_KEY from '../OpenAI_API_KEY.js';
+
+
 
 const blacksend = require('../assets/smallicons/greensend.png');
 const greensend = require('../assets/smallicons/greensend.png');
@@ -15,7 +18,7 @@ const isIOS = Platform.OS === 'ios';
 
 //TODO: Change
 var user = 'bob';
-var chatID = '343d';
+var chatID = 1;
 var index = 0;
 
 // const items = [
@@ -122,11 +125,16 @@ class ChatScreen extends Component {
 
       if (message.length === 0) return;
 
-      console.log('Sending message:', message);
+      // console.log('Sending message:', message);
       Keyboard.dismiss();
-      var originalMessage = message;
+      var originalMessage = message.trim();
       this.setState({ message: '', sendicon: blacksend, visibleSend: false });
-
+      var data2 = {
+         role: 'user',
+         content: originalMessage,
+      }
+      this.state.items.push(data2)
+      this.setState({ items: this.state.items })
       /* TODO:
         - handleSend doesn't even work. forget the firebase stuff. get handlsend to trigger correctly
         - then do the firebase stuff
@@ -145,52 +153,58 @@ class ChatScreen extends Component {
       push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
 
       // this.state.items.push(<Row text={data} key={index} />);
-      this.state.items.push(data)
-      index++;
-
+      // this.getPastMessages(3);
       this.queryOpenAI(originalMessage, db);
    };
 
+   getPastMessages = (num) => {
+      num *= 2;
+      num += 1;
+      console.log(num);
+      num = Math.min(num, this.state.items.length);
+      const lastEntries = this.state.items.slice(-num);
+      const pastMessages = lastEntries.map((entry) => {
+         const { role, content } = entry;
+         return {
+            role: role === "bot" ? "assistant" : role,
+            content: content,
+         };
+      });
+
+      console.log(pastMessages);
+      return pastMessages;
+   }
+
    queryOpenAI = async (message, db) => {
       // TODO: Send API request to OpenAI
-      // const result = await fetch(API_URL, {
-      //    method: "POST",
-      //    headers: {
-      //       "Content-Type": "application/json",
-      //       Authorization: `Bearer ${API_KEY}`,
-      //    },
-      //    body: JSON.stringify({
-      //       model: "gpt-3.5-turbo",
-      //       messages: [{ role: "user", content: message }],
-      //       max_tokens: 90,
-      //    }),
-      // });
-
-      // const response = await result.json();
-
-      const response = {
-         "choices": [
-            {
-               "finish_reason": "length",
-               "index": 0,
-               "message": {
-                  // "content": "As an AI language model, I do not have personal preferences. However, according to critics and audience ratings, the best DC movie ever is The Dark Knight (2008), directed by Christopher Nolan and starring Christian Bale as Batman and Heath Ledger as the",
-                  "content": "Man of Steel is often considered the best DC movie ever because it offers a fresh and modern take on the classic superhero origin story.\n\nThe movie explores Superman's origins on the planet Krypton and his upbringing on Earth, as well as his struggle to find his place in the world and his role as a hero. The film is visually stunning and action=packed, with some of the best and most intense superhero action scenes ever seen on screen. \n\n It also has a powerful emotional core, with themes of love, sacrifice, and heroism that resonate with audiences. Overall, Man of Steel is a well-crafted and entertaining movie that successfully re-introduced Superman to a new generation of moviegoers.",
-                  "role": "assistant"
-               }
-            }
-         ],
-         "created": 1685846626,
-         "id": "chatcmpl-7NY0YUjQi3vOtenpnK2eT8oYFkOMg",
-         "model": "gpt-3.5-turbo-0301",
-         "object": "chat.completion",
-         "usage": {
-            "completion_tokens": 50,
-            "prompt_tokens": 16,
-            "total_tokens": 66
-         }
-      }
+      console.log("Querying: ", message)
+      const API_URL = "https://api.openai.com/v1/chat/completions";
+      const result = await fetch(API_URL, {
+         method: "POST",
+         headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${API_KEY}`,
+         },
+         body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            // messages: [{ role: "user", content: message }],
+            messages: this.getPastMessages(6),
+            max_tokens: 99,
+         }),
+      });
+      const response = await result.json();
+      console.log(response);
+      console.log(response.choices[0].message.content);
       const text = response.choices[0].message.content;
+
+      var data2 = {
+         role: 'bot',
+         content: text,
+      }
+      this.state.items.push(data2)
+      this.setState({ items: this.state.items })
+
       const role = 'bot';
       const tokens = response.usage;
       const stamp = serverTimestamp();
@@ -205,12 +219,34 @@ class ChatScreen extends Component {
       };
       push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
 
-      // this.state.items.push(<Row text={data} key={index} />);
-      this.state.items.push(data)
-      index++;
+
 
       console.log(this.state.items.length)
    }
+
+   /* const response = {
+      "choices": [
+         {
+            "finish_reason": "length",
+            "index": 0,
+            "message": {
+               // "content": "As an AI language model, I do not have personal preferences. However, according to critics and audience ratings, the best DC movie ever is The Dark Knight (2008), directed by Christopher Nolan and starring Christian Bale as Batman and Heath Ledger as the",
+               "content": "Man of Steel is often considered the best DC movie ever because it offers a fresh and modern take on the classic superhero origin story.\n\nThe movie explores Superman's origins on the planet Krypton and his upbringing on Earth, as well as his struggle to find his place in the world and his role as a hero. The film is visually stunning and action=packed, with some of the best and most intense superhero action scenes ever seen on screen. \n\n It also has a powerful emotional core, with themes of love, sacrifice, and heroism that resonate with audiences. Overall, Man of Steel is a well-crafted and entertaining movie that successfully re-introduced Superman to a new generation of moviegoers.",
+               "role": "assistant"
+            }
+         }
+      ],
+      "created": 1685846626,
+      "id": "chatcmpl-7NY0YUjQi3vOtenpnK2eT8oYFkOMg",
+      "model": "gpt-3.5-turbo-0301",
+      "object": "chat.completion",
+      "usage": {
+         "completion_tokens": 50,
+         "prompt_tokens": 16,
+         "total_tokens": 66
+      }
+   }
+   */
 
 
    handleContentSizeChange = (event) => {
@@ -256,7 +292,7 @@ class ChatScreen extends Component {
       // FEATURE: user swipes left on header. or swipes right. goes to next chat.
       return (
          <View style={{ flex: 1 }}>
-            <Header title="Name of Chat" onPress={this.handleLeftButtonPress} />
+            <Header title={"Chat #" + chatID} onPress={this.handleLeftButtonPress} />
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                ref={ref => {
                   this.scrollViewRef = ref;
