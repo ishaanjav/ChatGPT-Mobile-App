@@ -162,6 +162,8 @@ class ChatScreen extends Component {
    };
 
    _keyboardDidHide = () => {
+      this.state.iosKeyboardMargin = 20;
+      this.setState({ iosKeyboardMargin: 20 })
       if (this.scrollViewRef) {
          this.scrollViewRef.scrollToEnd({ animated: true });
       }
