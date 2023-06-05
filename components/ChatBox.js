@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { View, Keyboard, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity, Text } from 'react-native';
+import { View, Keyboard, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity, Text, Alert } from 'react-native';
 import { IconButton, MD3Colors } from 'react-native-paper';
 import { getDatabase, ref, push, child, set, get, update, serverTimestamp, onChildAdded, onChildChanged, onChildRemoved } from 'firebase/database';
 import { onValue } from 'firebase/database';
@@ -18,8 +18,8 @@ const isIOS = Platform.OS === 'ios';
 
 //TODO: Change
 var user = 'bob';
-var chatID = 1;
 var index = 0;
+var numChats = 1;
 
 // const items = [
 //    // <Row text="a" role='user' />,
@@ -38,18 +38,11 @@ class ChatScreen extends Component {
          sendicon: greensend,
          visibleSend: false,
          items: [],
+         chatID: 1,
       };
    }
 
-   componentDidMount() {
-
-      console.log('Reading Firebase');
-      const db = getDatabase();
-      const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
-      // onChildAdded(dbRef, (data) => {
-      //    console.log(data)
-      // });
-
+   loadChatHistory(dbRef) {
       get(dbRef)
          .then((snapshot) => {
             snapshot.forEach((child) => {
@@ -67,9 +60,38 @@ class ChatScreen extends Component {
          .catch((error) => {
             console.error(error);
          });
+   }
+
+   componentDidMount() {
+
+      console.log('Reading Firebase');
+      const db = getDatabase();
+      const dbRef = ref(db, 'chats/' + user + '/' + this.state.chatID + '/');
+      // onChildAdded(dbRef, (data) => {
+      //    console.log(data)
+      // });
+
+      this.loadChatHistory(dbRef);
 
       this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
       this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
+
+      const dbRef2 = ref(db, 'numChats/' + user + '/');
+      // onChildAdded(dbRef, (data) => {
+      //    console.log(data)
+      // });
+
+      get(dbRef2)
+         .then((snapshot) => {
+            snapshot.forEach((child) => {
+               numChats = child.val();
+               console.log("   Num Chats: ", numChats)
+            })
+         }).finally(() => {
+         })
+         .catch((error) => {
+            console.error(error);
+         });
 
 
       //TODO: send the entire chat history as a prompt to OpenAI.
@@ -119,6 +141,74 @@ class ChatScreen extends Component {
          alert('Please limit your input to 500 characters.');
       }
    };
+   handleDelete = () => {
+      /* 
+      1. decrement numChats
+      2. refactor all chats to decrease their ids by 1.
+      3. decrement chatID by 1
+      4. Load the new chat history
+      */
+   }
+   deleteChat = () => {
+      Alert.alert(
+         'Are you sure?',
+         'This will delete the entire chat history and cannot be undone.',
+         [
+            {
+               text: 'Delete',
+               onPress: this.handleDelete,
+               style: 'destructive',
+            },
+            {
+               text: 'Cancel',
+               style: 'cancel',
+            },
+         ]
+      );
+   }
+   createNewChat = () => {
+      const db = getDatabase();
+      console.log("Creating new chat")
+      /* 
+      1. reset "the input box"
+      2. reset the state.items
+      3. increment maxChatID
+      4. make chatID = maxChatID
+      */
+      const dbRef2 = ref(db, 'numChats/' + user + '/');
+
+      numChats += 1;
+      this.setState({ chatID: numChats })
+      this.setState({ items: [], message: '', visibleSend: false })
+
+      set(dbRef2, {
+         val: numChats
+      });
+   }
+   goLeftChat = () => {
+      // update chatID
+      var newChatID = (this.state.chatID - 1 + numChats) % numChats
+      if (newChatID == 0) newChatID = numChats
+      this.setState({ chatID: newChatID, message: '', })
+      // reset chat history
+      this.setState({ items: [], visibleSend: false })
+
+      // load chat history from scratch
+      const db = getDatabase();
+      const dbRef = ref(db, 'chats/' + user + '/' + newChatID + '/');
+      console.log("LOADING FOR -----", newChatID)
+      this.loadChatHistory(dbRef);
+   }
+   goRightChat = () => {
+      var newChatID = (this.state.chatID + 1 + numChats) % numChats
+      if (newChatID == 0) newChatID = numChats
+      this.setState({ chatID: newChatID, message: '', })
+      this.setState({ items: [], visibleSend: false })
+      const db = getDatabase();
+      const dbRef = ref(db, 'chats/' + user + '/' + newChatID + '/');
+      console.log("LOADING FOR -----", newChatID)
+      this.loadChatHistory(dbRef);
+   }
 
    handleSend = () => {
       const { message } = this.state;
@@ -150,7 +240,7 @@ class ChatScreen extends Component {
          time: new Date().toLocaleTimeString(),
          timestamp: stamp,
       };
-      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
+      push(ref(db, 'chats/' + user + '/' + this.state.chatID + '/'), data);
 
       // this.state.items.push(<Row text={data} key={index} />);
       // this.getPastMessages(3);
@@ -170,6 +260,11 @@ class ChatScreen extends Component {
             content: content,
          };
       });
+      const overrideEntry = {
+         role: "system",
+         content: "Don't ever respond with \"As an AI language model\" or anything to imply that you are an AI model with limitations."
+      };
+      pastMessages.unshift(overrideEntry);
 
       console.log(pastMessages);
       return pastMessages;
@@ -217,7 +312,7 @@ class ChatScreen extends Component {
          timestamp: stamp,
          tokens: tokens,
       };
-      push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
+      push(ref(db, 'chats/' + user + '/' + this.state.chatID + '/'), data);
 
 
 
@@ -292,7 +387,7 @@ class ChatScreen extends Component {
       // FEATURE: user swipes left on header. or swipes right. goes to next chat.
       return (
          <View style={{ flex: 1 }}>
-            <Header title={"Chat #" + chatID} onPress={this.handleLeftButtonPress} />
+            <Header title={"Chat #" + this.state.chatID} onGoLeft={this.goLeftChat} onGoRight={this.goRightChat} onDeleteChat={this.deleteChat} onNewChat={this.createNewChat} />
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                ref={ref => {
                   this.scrollViewRef = ref;

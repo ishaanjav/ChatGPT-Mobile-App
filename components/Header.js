@@ -1,38 +1,55 @@
 import React from 'react';
 import { Platform, StatusBar, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Touchable } from 'react-native';
 import { IconButton } from 'react-native-paper';
-const arrow = require('../assets/smallicons/leftback.png');
+const lefty = require('../assets/smallicons/lefty.png');
+const righty = require('../assets/smallicons/righty.png');
 const plus = require('../assets/smallicons/plus.png');
-
-// write me a regular empty function
-const goHome = () => {
-    console.log('Going Home');
-};
+const trash = require('../assets/smallicons/trash.png');
 
 // TODO: Go to home page
 // TODO: Create new chat
-const Header = ({ title, onPress }) => {
+const Header = ({ title, onNewChat, onDeleteChat, onGoLeft, onGoRight }) => {
     return (
         <View style={styles.container}>
             <SafeAreaView style={styles.safe}>
-                <TouchableOpacity onPress={() => { console.log(' presssed') }}
-                    style={{ marginLeft: 10, backgroundColor: 'white' }}>
+                <TouchableOpacity onPress={() => { onGoLeft(); }}
+                    style={{ marginLeft: 4, backgroundColor: 'white' }}>
                     <IconButton
-                        icon={arrow} size={20}
+                        icon={lefty} size={20}
                         iconColor={'black'}
                         backgroundColor={'#fff'}
-                        onPress={() => { console.log(' presssed') }}
+                        onPress={() => { onGoLeft(); }}
+                        style={styles.button}
+                    />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { onDeleteChat(); }}
+                    style={{ marginLeft: 4, backgroundColor: 'white' }}>
+                    <IconButton
+                        icon={trash} size={20}
+                        iconColor={'black'}
+                        backgroundColor={'#fff'}
+                        onPress={() => { onDeleteChat(); }}
                         style={styles.button}
                     />
                 </TouchableOpacity>
                 <Text style={styles.title}>{title}</Text>
-                <TouchableOpacity onPress={() => { console.log(' newchat') }}
-                    style={{ marginRight: 4, backgroundColor: 'white' }}>
+                <TouchableOpacity onPress={() => { onNewChat(); }}
+                    style={{ marginLeft: 4, backgroundColor: 'white' }}>
                     <IconButton
                         icon={plus} size={20}
                         iconColor={'black'}
                         backgroundColor={'#fff'}
-                        onPress={() => { console.log(' presssed') }}
+                        onPress={() => { onNewChat(); }}
+                        style={styles.button}
+                    />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { onGoRight(); }}
+                    style={{ marginRight: 4, backgroundColor: 'white' }}>
+                    <IconButton
+                        icon={righty} size={20}
+                        iconColor={'black'}
+                        backgroundColor={'#fff'}
+                        onPress={() => { onGoRight(); }}
                         style={styles.button}
                     />
                 </TouchableOpacity>
