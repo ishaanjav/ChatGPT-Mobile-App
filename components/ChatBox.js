@@ -1,74 +1,65 @@
 import React, { Component } from 'react';
-import { View, Keyboard, ScrollView, TextInput, TouchableHighlight, Image, TouchableOpacity, Text, Alert } from 'react-native';
-import { IconButton, MD3Colors } from 'react-native-paper';
-import { getDatabase, ref, push, child, set, remove, get, update, serverTimestamp, onChildAdded, onChildChanged, onChildRemoved } from 'firebase/database';
-import { onValue } from 'firebase/database';
-import { initializeApp } from "firebase/app";
-import { firebaseConfig } from '../firebaseConfig.js';
-// const Navigation = require('react-native-navigation');
+import { View, Keyboard, ScrollView, TextInput, Text, Alert } from 'react-native';
+import { IconButton } from 'react-native-paper';
+import { getDatabase, ref, push, set, remove, get, serverTimestamp } from 'firebase/database';
 import Header from './Header.js';
 import Row from './Row.js';
 import API_KEY from '../OpenAI_API_KEY.js';
 import * as FileSystem from 'expo-file-system';
+import { initializeApp } from "firebase/app";
+import { firebaseConfig } from '../firebaseConfig.js';
 
 const blacksend = require('../assets/smallicons/greensend.png');
 const greensend = require('../assets/smallicons/greensend.png');
 const isIOS = Platform.OS === 'ios';
 
-//TODO: Change
+// variables to keep track of chat user, chat id, etc.
 var user = 'bob';
 var idx = 0;
 var numChats = 0;
 var lastUsed = 0;
 var chats = []
 var chatID = 1;
-// const items = [
-//    // <Row text="a" role='user' />,
-//    // <Row text="b" role='bot' />,
-//    // <Row text="c" role='user' />,
-//    // <Row text="d" role='bot' />,
-// ]
 
 class ChatScreen extends Component {
    constructor(props) {
       super(props);
       this.scrollViewRef = React.createRef();
       this.state = {
-         message: '',
+         message: '', //  message that user is typing
          textInputHeight: 40,
          sendicon: greensend,
-         visibleSend: false,
-         items: [],
-         chatTitle: 'Chat #' + chatID,
+         visibleSend: false, // whether or not to show the send button
+         items: [], // array of messages
+         chatTitle: 'Chat #' + chatID, // chat title
          // chatID: 1,
       };
    }
 
+   // load the chat history for a particular user and chatID.
    loadChatHistory(dbRef) {
       get(dbRef)
          .then((snapshot) => {
             snapshot.forEach((child) => {
-               // console.log("Added", index)
-               // this.state.items.push(<Row text={child.val()} key={index} />);
                this.state.items.push(child.val())
             })
          }).finally(() => {
-            // console.log(this.state.items);
             this.setState({ items: this.state.items })
-            // this.forceUpdate();
          })
          .catch((error) => {
             console.error(error);
          });
    }
 
+   // read the user ID from the file system. If it doesn't exist, generate a random one.
+   //  this userId is used to store the chat histories for that user
    async readUser() {
       const filePath = FileSystem.documentDirectory + 'user.txt';
-      // console.log(filePath)
+      // // commented: console.log(filePath)
       // Delete the file
       // FileSystem.deleteAsync(filePath)
       //    .then(() => {
-      //       console.log('File deleted successfully');
+      //       // commented: console.log('File deleted successfully');
       //    })
       //    .catch((error) => {
       //       console.error('Error deleting file:', error);
@@ -78,7 +69,6 @@ class ChatScreen extends Component {
          .then(({ exists }) => {
             if (exists) {
                // File exists, so read its contents
-               console.log(FileSystem.readAsStringAsync(filePath))
                return FileSystem.readAsStringAsync(filePath);
             } else {
                // File doesn't exist, so create it
@@ -90,8 +80,7 @@ class ChatScreen extends Component {
                   cur: 1,
                   last: 1
                });
-               console.log("=============1111==================>")
-               console.log('Reading Firebase');
+               // now ready to read from firebase.
                this.readFirebase();
                return FileSystem.writeAsStringAsync(filePath, user);
             }
@@ -99,17 +88,14 @@ class ChatScreen extends Component {
          .then((data) => {
             if (data) {
                user = data;
-               console.log('Reading Firebase');
                this.readFirebase();
-            } else {
-
             }
-            console.log("USER:", user)
          })
          .catch((error) => {
             console.error('Error reading or creating file:', error);
          });
    }
+   // read from firebase when component mounts
    readFirebase() {
       const db = getDatabase();
 
@@ -122,19 +108,17 @@ class ChatScreen extends Component {
                if (!containsLetter(child.key))
                   chats.push(child.val());
                if (cnter == 1) {
-                  // basically, once we get the first chat in the list, immediately load its messages
+                  // Once we get the user's first chat, immediately load its messages
                   //  before getting the metadata of other chats
                   chatID = chats[idx].ref;
-                  console.log("GOBOBER", chatID)
                   const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
                   this.loadChatHistory(dbRef);
                }
             });
          }).finally(() => {
-            console.log("CHATS: ", chats)
             if (chats.length > idx) {
+               // update chatID and chatTitle
                chatID = chats[idx].ref;
-               console.log("ASDFASDFASDFASDFA", chatID)
                this.setState({ chatTitle: chats[idx].name })
             }
          })
@@ -142,13 +126,12 @@ class ChatScreen extends Component {
             console.error(error);
          });
 
-      console.log("=============2222==================>")
+      // get numChats and lastUsed
       const dbRef2 = ref(db, 'numChats/' + user + '/');
       get(dbRef2)
          .then((snapshot) => {
             numChats = snapshot.val().cur;
             lastUsed = snapshot.val().last;
-            console.log("  numChats", numChats, "lastUsed", lastUsed)
          }).finally(() => {
          })
          .catch((error) => {
@@ -159,9 +142,6 @@ class ChatScreen extends Component {
 
    componentDidMount() {
       this.readUser();
-
-
-
 
       this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
       this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
@@ -199,17 +179,18 @@ class ChatScreen extends Component {
    handleDelete = () => {
       /* 
       1. decrement numChats
-      2. refactor all chats to decrease their ids by 1.
-      3. decrement chatID by 1
-      4. Load the new chat history
+         - if there are no more chats, create a new blank one
+      2. remove the chat from refs
+      3. Load the new chat history 
+      4. update numChats in Firebase
+      4.
       */
       numChats -= 1;
       const chatData = chats[idx];
       chats.splice(idx, 1);
       if (idx == numChats) idx--;
       if (idx == -1) {
-         //TODO DO some stuff to create a blank new Chat
-         // Literally just call createNewChat()
+         // create a new chat because there must always be at least 1 chat, even if just blank.
          this.createNewChat();
          idx = 0;
          const db = getDatabase();
@@ -235,7 +216,7 @@ class ChatScreen extends Component {
 
       const db = getDatabase();
       const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
-      console.log("LOADING FOR -----", chatID)
+      // load the chat history for the chat after this.
       this.loadChatHistory(dbRef);
 
       if (chats.length > idx) {
@@ -284,7 +265,6 @@ class ChatScreen extends Component {
          return;
 
       const db = getDatabase();
-      console.log("Creating new chat")
       /* 
       1. reset "the input box"
       2. reset the state.items
@@ -296,12 +276,10 @@ class ChatScreen extends Component {
 
       numChats += 1;
       lastUsed += 1;
-      console.log("New chat:", numChats, lastUsed)
       chatID = lastUsed;
-      // this.setState({ chatID: lastUsed })
       this.setState({ items: [], message: '', visibleSend: false })
 
-      // DONE: Rerender title using chats[idx].name
+      // Rerender title using chats[idx].name
       this.setState({ chatTitle: "Chat #" + chatID })
 
       set(dbRef2, {
@@ -315,10 +293,9 @@ class ChatScreen extends Component {
          date: new Date().toLocaleDateString(),
          time: new Date().toLocaleTimeString(),
       };
-      console.log(chatID, lastUsed);
+      // update the user's metadata (num chats, and lastChatID)
       set(ref(db, 'refs/' + user + '/' + lastUsed + '/'), data);
       chats.push(data);
-      console.log("CHATs", chats)
       idx = chats.length - 1;
    }
    goLeftChat = () => {
@@ -328,13 +305,8 @@ class ChatScreen extends Component {
 
       //update idx
       idx = (idx - 1 + numChats) % numChats
-      // set new chatID using the chats array
       chatID = chats[idx].ref;
-      console.log("IDX", idx, chats[idx].ref, chatID)
       this.setState({ message: '', })
-
-
-      // DONE: Rerender title using chats[idx].name
       if (chats.length > idx) {
          this.setState({ chatTitle: chats[idx].name })
       } else {
@@ -348,7 +320,6 @@ class ChatScreen extends Component {
       // load chat history from scratch
       const db = getDatabase();
       const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
-      console.log("LOADING FOR -----", chatID)
       this.loadChatHistory(dbRef);
    }
    goRightChat = () => {
@@ -358,11 +329,10 @@ class ChatScreen extends Component {
       //update idx
       idx = (idx + 1 + numChats) % numChats
       chatID = chats[idx].ref;
-      console.log("IDX", idx, chats[idx].ref, chatID)
       // set new chatID using the chats array
       this.setState({ message: '', })
 
-      // DONE: Rerender title using chats[idx].name
+      // Rerender title using chats[idx].name
       if (chats.length > idx) {
          this.setState({ chatTitle: chats[idx].name })
       } else {
@@ -375,7 +345,6 @@ class ChatScreen extends Component {
       // load chat history from scratch
       const db = getDatabase();
       const dbRef = ref(db, 'chats/' + user + '/' + chatID + '/');
-      console.log("LOADING FOR -----", chatID)
       this.loadChatHistory(dbRef);
    }
 
@@ -384,7 +353,6 @@ class ChatScreen extends Component {
 
       if (message.length === 0) return;
 
-      // console.log('Sending message:', message);
       Keyboard.dismiss();
       var originalMessage = message.trim();
       this.setState({ message: '', sendicon: blacksend, visibleSend: false });
@@ -395,7 +363,7 @@ class ChatScreen extends Component {
       this.state.items.push(data2)
       this.setState({ items: this.state.items })
 
-      // Our first message
+      // Our first message. So we create the refs for this user
       if (this.state.items.length == 1 && numChats == 1) {
          const db = getDatabase();
          var data = {
@@ -407,17 +375,15 @@ class ChatScreen extends Component {
          set(ref(db, 'refs/' + user + '/' + chatID + '/'), data);
          chats.push(data);
       } else if (this.state.items.length == 5) {
-         // TODO: Get a summary of existing messages and get an appropriate title and push to above reference.
-         // then set chats[idx] = data
-         //  manually rerender the title
+         // Once the user has entered their 3rd message, get a summary from OpenAI
+         //  to use as the title of this conversation.
          const API_URL = "https://api.openai.com/v1/chat/completions";
-         // remove that command about not saying I'm an AI model
+         // remove the command about not saying I'm an AI model
          const messages = this.getPastMessages(2).slice(1);
          const newMessage = {
             role: 'user', content: 'Give me a very concise title of what this conversation above is about. It MUST be less than 40 characters. Less than 18 characters and 3 words is ideal. ONLY respond with just the very brief title.'
          };
          messages.push(newMessage);
-         console.log("Making requests", messages)
          const result = await fetch(API_URL, {
             method: "POST",
             headers: {
@@ -427,13 +393,13 @@ class ChatScreen extends Component {
             },
             body: JSON.stringify({
                model: "gpt-3.5-turbo",
-               // messages: [{ role: "user", content: message }],
                messages: messages,
                max_tokens: 50,
             }),
          });
          const response = await result.json();
-         console.log("CHAT TITLE: ====> ", response.choices[0].message.content);
+
+         // update title
          let title = response.choices[0].message.content;
          title = capitalizeAndRemovePunctuation(title);
          this.state.chatTitle = title;
@@ -444,16 +410,15 @@ class ChatScreen extends Component {
             date: new Date().toLocaleDateString(),
             time: new Date().toLocaleTimeString(),
          };
+         // update metadata of this chat (namely the title)
          const db = getDatabase();
          set(ref(db, 'refs/' + user + '/' + chatID + '/'), data);
          chats[idx] = data;
-         console.log(chats)
-         // TODO: Rerender the title text in header.
       }
 
       const db = getDatabase();
       const stamp = serverTimestamp();
-      // const messageName = db.ServerValue.TIMESTAMP + '_u';
+
       var data = {
          role: 'user',
          content: originalMessage,
@@ -461,17 +426,17 @@ class ChatScreen extends Component {
          time: new Date().toLocaleTimeString(),
          timestamp: stamp,
       };
+      // Push a new message to the chat history
       push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
 
-      // this.state.items.push(<Row text={data} key={index} />);
-      // this.getPastMessages(3);
       this.queryOpenAI(originalMessage, db);
    };
 
+   // get the num past messages between human and bot. this is to give
+   //  the AI some context when making API calls
    getPastMessages = (num) => {
       num *= 2;
       num += 1;
-      console.log(num);
       num = Math.min(num, this.state.items.length);
       const lastEntries = this.state.items.slice(-num);
       const pastMessages = lastEntries.map((entry) => {
@@ -487,13 +452,11 @@ class ChatScreen extends Component {
       };
       pastMessages.unshift(overrideEntry);
 
-      console.log(pastMessages);
       return pastMessages;
    }
 
+   // making API call to OpenAI
    queryOpenAI = async (message, db) => {
-      // TODO: Send API request to OpenAI
-      console.log("Querying: ", message)
       const API_URL = "https://api.openai.com/v1/chat/completions";
       const result = await fetch(API_URL, {
          method: "POST",
@@ -504,14 +467,11 @@ class ChatScreen extends Component {
          },
          body: JSON.stringify({
             model: "gpt-3.5-turbo",
-            // messages: [{ role: "user", content: message }],
             messages: this.getPastMessages(6),
             max_tokens: 99,
          }),
       });
       const response = await result.json();
-      console.log(response);
-      console.log(response.choices[0].message.content);
       const text = response.choices[0].message.content;
 
       var data2 = {
@@ -524,7 +484,7 @@ class ChatScreen extends Component {
       const role = 'bot';
       const tokens = response.usage;
       const stamp = serverTimestamp();
-      // const messageName = stamp.toSTring + '_b';
+
       var data = {
          role: role,
          content: text,
@@ -533,57 +493,14 @@ class ChatScreen extends Component {
          timestamp: stamp,
          tokens: tokens,
       };
+      // Push a new message to the chat history
       push(ref(db, 'chats/' + user + '/' + chatID + '/'), data);
-
-
-
-      console.log(this.state.items.length)
    }
-
-   /* const response = {
-      "choices": [
-         {
-            "finish_reason": "length",
-            "index": 0,
-            "message": {
-               // "content": "As an AI language model, I do not have personal preferences. However, according to critics and audience ratings, the best DC movie ever is The Dark Knight (2008), directed by Christopher Nolan and starring Christian Bale as Batman and Heath Ledger as the",
-               "content": "Man of Steel is often considered the best DC movie ever because it offers a fresh and modern take on the classic superhero origin story.\n\nThe movie explores Superman's origins on the planet Krypton and his upbringing on Earth, as well as his struggle to find his place in the world and his role as a hero. The film is visually stunning and action=packed, with some of the best and most intense superhero action scenes ever seen on screen. \n\n It also has a powerful emotional core, with themes of love, sacrifice, and heroism that resonate with audiences. Overall, Man of Steel is a well-crafted and entertaining movie that successfully re-introduced Superman to a new generation of moviegoers.",
-               "role": "assistant"
-            }
-         }
-      ],
-      "created": 1685846626,
-      "id": "chatcmpl-7NY0YUjQi3vOtenpnK2eT8oYFkOMg",
-      "model": "gpt-3.5-turbo-0301",
-      "object": "chat.completion",
-      "usage": {
-         "completion_tokens": 50,
-         "prompt_tokens": 16,
-         "total_tokens": 66
-      }
-   }
-   */
-
 
    handleContentSizeChange = (event) => {
       const { contentSize } = event.nativeEvent;
       this.setState({ textInputHeight: contentSize.height });
    };
-
-   handleLeftButtonPress = (event) => {
-      // TODO, go to home screen
-      console.log("Going to home screen");
-   };
-   renderItems() {
-      // Check if items array is not empty
-      // if (this.state.items.length > 0) {
-      console.log("HEREEE", this.state.items.length)
-      // console.log(this.state.items);
-      return this.state.items.map((item, index) => (
-         // Render individual item components here
-         <Text key={index}>{item.role}</Text>
-      ));
-   }
 
    render() {
       const { message, textInputHeight, sendicon, visibleSend } = this.state;
@@ -604,8 +521,6 @@ class ChatScreen extends Component {
          />
       }
 
-      // TODO: Change title to name of chat
-      // FEATURE: user swipes left on header. or swipes right. goes to next chat.
       return (
          <View style={{ flex: 1 }}>
             <Header title={this.state.chatTitle} onGoLeft={this.goLeftChat} onGoRight={this.goRightChat} onDeleteChat={this.deleteChat} onNewChat={this.createNewChat} />
@@ -622,14 +537,6 @@ class ChatScreen extends Component {
                {this.state.items.map((item, index) => (
                   <Row text={item} key={index} />
                ))}
-               {/* {Object.entries(this.state.items).map(([key, value]) => {
-                  return (
-                     <Text>
-                        {key}: {value}
-                     </Text>
-                  );
-               })} */}
-               {/* {this.renderItems()} */}
             </ScrollView>
             <View
                style={{
@@ -672,16 +579,8 @@ class ChatScreen extends Component {
                      }}
                   />
 
-                  {/* <IconButton icon={sendicon} size={20} onPress={() => console.log('Pressed')} /> */}
                   {button}
 
-                  {/* <TouchableHighlight onPress={this.handleSend} style={{ backgroundColor: 'red' }}>
-                  <Image source={sendicon} style={{ width: 20, height: 20, marginRight: 10 }} />
-                </TouchableHighlight> */}
-
-                  {/* <TouchableOpacity style={{ padding: 10 }} onPress={this.handleSend}>
-                  <Text style={{ color: 'black' }}>Send</Text>
-                </TouchableOpacity> */}
                </View>
             </View>
          </View>
@@ -691,39 +590,25 @@ class ChatScreen extends Component {
 
 export default ChatScreen;
 
+// String processing, JavaScript helper functions
 function capitalizeAndRemovePunctuation(str) {
-   // Convert the string to lowercase and split it into words
    const words = str.toLowerCase().split(' ');
-
-   // Capitalize the beginning of each word and remove punctuation at the end
    const capitalizedWords = words.map((word) => {
-      // Remove punctuation at the end of each word
       const wordWithoutPunctuation = word.replace(/[^\w\s]|_/g, '').replace(/\s+/g, ' ');
-
-      // Capitalize the first letter of each word
-      const capitalized = wordWithoutPunctuation.charAt(0).toUpperCase() + wordWithoutPunctuation.slice(1);
-
-      return capitalized;
+      return wordWithoutPunctuation.charAt(0).toUpperCase() + wordWithoutPunctuation.slice(1);
    });
 
-   // Join the words back into a string
-   const result = capitalizedWords.join(' ');
-
-   return result;
+   return capitalizedWords.join(' ');;
 } function containsLetter(str) {
    const regex = /[a-zA-Z]/;
    return regex.test(str);
-}
-
-function generateRandomString(length) {
+} function generateRandomString(length) {
    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
    let result = '';
    const charactersLength = characters.length;
-
    for (let i = 0; i < length; i++) {
       const randomIndex = Math.floor(Math.random() * charactersLength);
       result += characters.charAt(randomIndex);
    }
-
    return result;
 }
