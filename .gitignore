@@ -18,3 +18,4 @@ web-build/
 OpenAI_API_KEY.js
 .oldgit/
 .firebase/
+app.json
