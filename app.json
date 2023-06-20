@@ -15,16 +15,29 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ishaanjav.ChatGPTMobileApp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/appicon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.ishaanjav.ChatGPTMobileApp"
     },
     "web": {
       "favicon": "./assets/appicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "29821c33-f8c6-468c-ab4a-ab2f8eba4eba"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/29821c33-f8c6-468c-ab4a-ab2f8eba4eba"
     }
   }
 }

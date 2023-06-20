@@ -361,6 +361,7 @@ class ChatScreen extends Component {
 
       this.state.iosKeyboardMargin = 20;
       this.setState({ iosKeyboardMargin: 20 })
+      this.setState({ textInputHeight: 40 })
 
       Keyboard.dismiss();
       var originalMessage = message.trim();
@@ -477,7 +478,7 @@ class ChatScreen extends Component {
          body: JSON.stringify({
             model: "gpt-3.5-turbo",
             messages: this.getPastMessages(6),
-            max_tokens: 99,
+            max_tokens: 149,
          }),
       });
       const response = await result.json();
